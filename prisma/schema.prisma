@@ -1,0 +1,141 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// enums valores fijos permitidos
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_OBRA
+  CAPATAZ
+  TRABAJADOR
+}
+
+enum EstadoAvance {
+  PENDIENTE
+  CONFIRMADO
+  RECHAZADO
+}
+
+enum EstadoObra {
+  ACTIVA
+  PAUSADA
+  TERMINADA
+}
+
+enum UnidadMedida {
+  METROS
+  METROS_CUADRADOS
+  METROS_CUBICOS
+  KILOGRAMOS
+  TONELADAS
+  UNIDADES
+  HORAS
+}
+
+
+// MODELOS
+model Usuario {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String   @unique
+  password  String
+  role      Role     @default(TRABAJADOR)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  obrasAsignadas UsuarioObra[]
+  avancesRegistrados Avance[]  @relation("AvanceRegistradoPor")
+  avancesConfirmados Avance[]  @relation("AvanceConfirmadoPor")
+  metasResponsable   Meta[]
+
+  @@map("usuarios")
+}
+
+model Obra {
+  id          String     @id @default(cuid())
+  nombre      String
+  ubicacion   String
+  descripcion String?
+  estado      EstadoObra @default(ACTIVA)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relaciones
+  usuarios UsuarioObra[]
+  metas    Meta[]
+
+  @@map("obras")
+}
+
+// Tabla intermedia para la relación Obra <-> Usuario
+// Un usuario puede estar en muchas obras con diferentes roles
+model UsuarioObra {
+  id       String @id @default(cuid())
+  role     Role   @default(CAPATAZ)
+
+  usuarioId String
+  obraId    String
+
+  usuario  Usuario @relation(fields: [usuarioId], references: [id])
+  obra     Obra    @relation(fields: [obraId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([usuarioId, obraId])
+  @@map("usuarios_obras")
+}
+
+model Meta {
+  id          String       @id @default(cuid())
+  nombre      String
+  descripcion String?
+  semana      Int          // número de semana ISO (1-53)
+  año         Int
+  objetivo    Float        // cantidad a lograr
+  unidad      UnidadMedida
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relaciones
+  obraId       String
+  obra         Obra    @relation(fields: [obraId], references: [id])
+  responsableId String
+  responsable  Usuario @relation(fields: [responsableId], references: [id])
+  avances      Avance[]
+
+  @@map("metas")
+}
+
+model Avance {
+  id          String       @id @default(cuid())
+  cantidad    Float
+  fecha       DateTime     @default(now())
+  nota        String?
+  estado      EstadoAvance @default(PENDIENTE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relaciones
+  metaId          String
+  meta            Meta    @relation(fields: [metaId], references: [id])
+  registradoPorId String
+  registradoPor   Usuario @relation("AvanceRegistradoPor", fields: [registradoPorId], references: [id])
+  confirmadoPorId String?
+  confirmadoPor   Usuario? @relation("AvanceConfirmadoPor", fields: [confirmadoPorId], references: [id])
+  fechaConfirmacion DateTime?
+
+  @@map("avances")
+}
